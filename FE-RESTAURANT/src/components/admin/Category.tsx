@@ -1,38 +1,45 @@
-import { useState, useEffect, type FormEvent } from 'react';
-import { getAllCategories, createCategory } from '../../services/Category';
+import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
+import {
+  getAllCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+} from '../../services/Category'; // Giả sử bạn đã đổi tên file
 import { type Category } from '../../interfaces/Category';
 import { toast } from 'react-toastify';
 
 export default function CategoryPage() {
-  // State để lưu danh sách các danh mục
+  // === STATE ===
   const [categories, setCategories] = useState<Category[]>([]);
-  // State cho việc thêm mới danh mục
   const [newCategoryName, setNewCategoryName] = useState('');
-  // State cho trạng thái tải dữ liệu
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Hàm để tải lại danh sách danh mục
+  // State cho việc sửa: dùng một object để giữ cả id và name
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+
+  // === DATA FETCHING ===
   const fetchCategories = async () => {
     try {
-      setLoading(true);
       const data = await getAllCategories();
       setCategories(data);
     } catch (err) {
-      setError('Không thể tải danh sách danh mục.');
-      toast.error('Không thể tải danh sách danh mục.');
+      const errorMessage = 'Không thể tải danh sách danh mục.';
+      setError(errorMessage);
+      toast.error(errorMessage);
       console.error(err);
     } finally {
-      setLoading(false);
+      if (loading) setLoading(false);
     }
   };
 
-  // Dùng useEffect để gọi API lấy danh sách khi component được render lần đầu
   useEffect(() => {
     fetchCategories();
   }, []);
 
-  // Hàm xử lý khi submit form tạo mới
+  // === HANDLERS ===
+
+  // Xử lý tạo mới
   const handleCreateCategory = async (e: FormEvent) => {
     e.preventDefault();
     if (!newCategoryName.trim()) {
@@ -42,62 +49,173 @@ export default function CategoryPage() {
     try {
       await createCategory({ name: newCategoryName });
       toast.success('Tạo danh mục thành công!');
-      setNewCategoryName(''); 
-      fetchCategories(); 
+      setNewCategoryName('');
+      fetchCategories(); // Tải lại danh sách
     } catch (err) {
       toast.error('Lỗi khi tạo danh mục.');
       console.error(err);
     }
   };
 
-  // Hiển thị trạng thái tải
+  // Xử lý xóa
+  const handleDeleteCategory = async (id: number) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa danh mục này không?')) {
+      return;
+    }
+    try {
+      await deleteCategory(id);
+      toast.success('Xóa danh mục thành công!');
+      fetchCategories(); // Tải lại danh sách
+    } catch (err) {
+      toast.error('Lỗi khi xóa danh mục.');
+      console.error(err);
+    }
+  };
+
+  // Bắt đầu chỉnh sửa
+  const handleEditClick = (category: Category) => {
+    setEditingCategory({ ...category }); // Tạo một bản sao để chỉnh sửa
+  };
+
+  // Hủy bỏ chỉnh sửa
+  const handleCancelEdit = () => {
+    setEditingCategory(null);
+  };
+
+  // Cập nhật giá trị khi đang gõ trong ô sửa
+  const handleEditingInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (editingCategory) {
+      setEditingCategory({
+        ...editingCategory,
+        name: e.target.value,
+      });
+    }
+  };
+
+  // Gửi yêu cầu cập nhật
+  const handleUpdateCategory = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingCategory || !editingCategory.name.trim()) {
+      toast.warn('Tên danh mục không được để trống.');
+      return;
+    }
+    try {
+      await updateCategory(editingCategory.id, { name: editingCategory.name });
+      toast.success('Cập nhật danh mục thành công!');
+      setEditingCategory(null); // Thoát khỏi chế độ sửa
+      fetchCategories(); // Tải lại danh sách
+    } catch (err) {
+      toast.error('Lỗi khi cập nhật danh mục.');
+      console.error(err);
+    }
+  };
+
+  // === RENDER LOGIC ===
   if (loading) {
-    return <div>Đang tải...</div>;
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh' }}>
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    );
   }
 
-  // Hiển thị lỗi nếu có
   if (error) {
-    return <div>Lỗi: {error}</div>;
+    return (
+      <div className="container mt-4">
+        <div className="alert alert-danger" role="alert">
+          <strong>Lỗi:</strong> {error}
+        </div>
+      </div>
+    );
   }
 
-  // Giao diện chính
   return (
-    <div>
-      <h1>Quản lý Danh mục</h1>
+    <div className="container mt-4">
+      <h1 className="mb-4">Quản lý Danh mục</h1>
 
       {/* Form thêm mới */}
-      <form onSubmit={handleCreateCategory}>
-        <input
-          type="text"
-          value={newCategoryName}
-          onChange={(e) => setNewCategoryName(e.target.value)}
-          placeholder="Tên danh mục mới"
-        />
-        <button type="submit">Thêm mới</button>
-      </form>
+      <div className="card mb-4">
+        <div className="card-body">
+          <h5 className="card-title">Thêm danh mục mới</h5>
+          <form onSubmit={handleCreateCategory}>
+            <div className="input-group">
+              <input
+                type="text"
+                className="form-control"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                placeholder="Tên danh mục mới"
+              />
+              <button className="btn btn-primary" type="submit">Thêm mới</button>
+            </div>
+          </form>
+        </div>
+      </div>
 
       {/* Bảng hiển thị danh sách */}
-      <table border={1} style={{ width: '100%', marginTop: '1rem' }}>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Tên Danh mục</th>
-            <th>Hành động</th>
-          </tr>
-        </thead>
-        <tbody>
-          {categories.map((category) => (
-            <tr key={category.id}>
-              <td>{category.id}</td>
-              <td>{category.name}</td>
-              <td>
-                <button>Sửa</button>
-                <button>Xóa</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="card">
+        <div className="card-body">
+            <h5 className="card-title">Danh sách danh mục</h5>
+            <table className="table table-striped table-bordered table-hover align-middle">
+              <thead className="table-dark">
+                <tr>
+                  <th scope="col" style={{ width: '10%' }}>ID</th>
+                  <th scope="col">Tên Danh mục</th>
+                  <th scope="col" style={{ width: '20%' }} className="text-center">Hành động</th>
+                </tr>
+              </thead>
+              <tbody>
+                {categories.map((category) => (
+                  <tr key={category.id}>
+                    {editingCategory?.id === category.id ? (
+                      // Chế độ SỬA
+                      <>
+                        <td>{category.id}</td>
+                        <td colSpan={2}>
+                          <form onSubmit={handleUpdateCategory} className="d-flex gap-2">
+                            <input
+                              type="text"
+                              className="form-control"
+                              value={editingCategory.name}
+                              onChange={handleEditingInputChange}
+                              autoFocus
+                            />
+                            <button type="submit" className="btn btn-success btn-sm">Lưu</button>
+                            <button type="button" className="btn btn-secondary btn-sm" onClick={handleCancelEdit}>Hủy</button>
+                          </form>
+                        </td>
+                      </>
+                    ) : (
+                      // Chế độ XEM
+                      <>
+                        <td>{category.id}</td>
+                        <td>{category.name}</td>
+                        <td className="text-center">
+                          <button
+                            type="button"
+                            className="btn btn-warning btn-sm me-2"
+                            onClick={() => handleEditClick(category)}
+                          >
+                            Sửa
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-danger btn-sm"
+                            onClick={() => handleDeleteCategory(category.id)}
+                          >
+                            Xóa
+                          </button>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+        </div>
+      </div>
     </div>
   );
 }
