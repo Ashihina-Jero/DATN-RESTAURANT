@@ -1,0 +1,10 @@
+.background-image {
+    background-image: url(../assets/images/unnamed.jpg);
+    background-size: cover;
+    background-position: center;
+    height: 100vh;
+}
+
+.logo-image {
+    width: 150px;
+}
